@@ -1,0 +1,1335 @@
+# ============================================================================
+# ESP32-C6 Unified Pump Control Firmware
+# ============================================================================
+# Hardware: ESP32-C6-DevKitM-1 (8MB Flash)
+# Framework: ESP-IDF
+# Purpose: Dual-mode pump controller with cycle counting and sensor support
+#
+# Operating Modes:
+#   - Continuous: Time-based pumping (water evacuation)
+#   - Cycle (Dispensing): Counted dispensing with alerts (finite fluid)
+# ============================================================================
+
+substitutions:
+  # =================================================================
+  # Device Identification
+  # =================================================================
+  # device_id: REQUIRED - Unique identifier for this pump
+  #   Used to organize multiple pumps
+  #   Examples: "pump1", "pump2", "kitchen", "garage", etc.
+  #   IMPORTANT: Change this for each pump you deploy!
+  # =================================================================
+  device_id: "pump1"
+
+  # friendly_name: Customize this for your specific pump installation
+  #   Examples: "Kitchen Cleaner Pump", "Garage Water Pump", etc.
+  # Internal device name will be: apollo-pump-1-[MAC] (e.g., apollo-pump-1-a1b2c3)
+  # =================================================================
+  friendly_name: "Apollo Pump"
+
+  version: "jadehawk-2025.10.11.1"
+  device_description: Apollo Pump made by Apollo Automation - Custom FW version ${version}.
+
+  # =================================================================
+  # Timezone Configuration
+  # =================================================================
+  # Change this to match your local timezone
+  # Common examples:
+  #   - "America/New_York" (EST/EDT)
+  #   - "America/Chicago" (CST/CDT)
+  #   - "America/Los_Angeles" (PST/PDT)
+  #   - "Europe/London" (GMT/BST)
+  #   - "Europe/Paris" (CET/CEST)
+  #   - "Asia/Tokyo" (JST)
+  # Full list: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+  # =================================================================
+  timezone: "America/New_York"
+
+  # =================================================================
+  # Security Credentials - REQUIRED
+  # =================================================================
+  # IMPORTANT: You MUST generate and paste credentials here!
+  # ESPHome does NOT auto-generate when using custom YAML files.
+  #
+  # HOW TO GENERATE:
+  # Run this command in terminal to generate both values:
+  #   esphome wizard temp.yaml
+  # Or use online tools:
+  #   - OTA Password: Any 32-character random string
+  #   - API Key: https://esphome.io/components/api.html (use "Generate" button)
+  #
+  # FORMAT REQUIREMENTS:
+  #   ota_password: Any string (recommend 32+ characters)
+  #   api_encryption_key: Base64 string, exactly 44 characters
+  #
+  # EXAMPLE (DO NOT USE THESE - Generate your own!):
+  #   ota_password: "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6"
+  #   api_encryption_key: "AbC123dEf456GhI789jKl012MnO345pQr678StU901w="
+  #
+  # IMPORTANT: Each pump MUST have UNIQUE credentials!
+  # FOR API ENCRYPTION KEY GOTO LINE# 223
+  # =================================================================
+  ota_password: "PASTE_YOUR_OTA_PASSWORD_HERE"
+
+# ============================================================================
+# ESP32 Configuration
+# ============================================================================
+esp32:
+  board: esp32-c6-devkitm-1
+  variant: esp32c6
+  flash_size: 8MB
+  framework:
+    type: esp-idf
+    version: 5.3.1
+    platform_version: 6.8.1
+
+# ============================================================================
+# ESPHome Core Configuration
+# ============================================================================
+esphome:
+  name: apollo-pump-1
+  name_add_mac_suffix: true # Auto-appends MAC address (e.g., apollo-pump-1-a1b2c3)
+  friendly_name: ${friendly_name}
+
+  on_boot:
+    # Priority 600: Initialize safety variables
+    - priority: 600
+      then:
+        - lambda: |-
+            id(pump_start_time) = 0;
+            id(safety_alert_active) = false;
+            id(boot_test_complete) = false;
+        - script.execute: pump_safety_check
+
+    # Priority 100: Initialize timestamp tracking
+    - priority: 100
+      then:
+        - lambda: |-
+            // Only initialize timestamp if it's 0 (first boot or never run)
+            if (id(last_run_timestamp) == 0) {
+              if (id(sntp_time).now().timestamp > 0) {
+                id(last_run_timestamp) = id(sntp_time).now().timestamp;
+                ESP_LOGI("boot", "First boot: Timestamp initialized with SNTP time");
+              } else {
+                ESP_LOGI("boot", "First boot: Waiting for SNTP sync to initialize timestamp");
+              }
+            } else {
+              ESP_LOGI("boot", "Timestamp restored from flash: %lu", id(last_run_timestamp));
+            }
+
+    # Priority -100: Boot test sequence (runs first)
+    - priority: -100
+      then:
+        - delay: 3s
+        - script.execute: boot_test_sequence
+
+    # Priority -200: WiFi status check and LED feedback (runs after boot test)
+    - priority: -200
+      then:
+        - delay: 1s
+        - script.execute: wifi_status_check
+
+# ============================================================================
+# Logging
+# ============================================================================
+logger:
+  level: DEBUG
+  logs:
+    sensor: WARN
+    light: WARN
+    button: INFO # Show button press activity
+    switch: INFO # Show pump on/off states
+    script: INFO # Show automation script execution
+    time: DEBUG # Show all time-related activity
+    sntp: DEBUG # Show SNTP synchronization details
+
+# ============================================================================
+# OTA Updates
+# ============================================================================
+ota:
+  - platform: esphome
+    # OTA password from substitutions
+    # Leave empty in substitutions for auto-generation on first compile
+    password: ${ota_password}
+
+# ============================================================================
+# WiFi Configuration
+# ============================================================================
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  # =================================================================
+  # Static IP Configuration (Optional)
+  # =================================================================
+  # Uncomment and configure if you want a static IP address
+  # This helps with OTA updates and prevents IP address changes
+  #
+  # manual_ip:
+  #   static_ip: 192.168.50.43
+  #   gateway: 192.168.50.1
+  #   subnet: 255.255.255.0
+  #   dns1: 192.168.50.1      # Primary DNS (router)
+  #   dns2: 8.8.8.8      # Secondary DNS (Google)
+  # =================================================================
+
+  # AP mode for initial configuration (no password for easy access)
+  ap:
+    ssid: "Apollo-Pump-1 Setup"
+
+  # Connection monitoring
+  on_connect:
+    - logger.log: "WiFi connected successfully"
+    - script.execute: wifi_connected_feedback
+
+  on_disconnect:
+    - logger.log: "WiFi disconnected"
+    - script.execute: wifi_error_feedback
+
+# ============================================================================
+# Captive Portal (for WiFi setup)
+# ============================================================================
+captive_portal:
+
+# ============================================================================
+# Web Server (available after WiFi connection)
+# ============================================================================
+web_server:
+  port: 80
+
+# ============================================================================
+# Home Assistant API
+# ============================================================================
+api:
+  reboot_timeout: 15min
+  # =================================================================
+  # API Encryption - REQUIRED
+  # =================================================================
+  # IMPORTANT: Replace the placeholder key below with your own!
+  #
+  # HOW TO GENERATE:
+  # 1. Run: esphome wizard temp.yaml (generates key automatically)
+  # 2. Or visit: https://esphome.io/components/api.html (click "Generate")
+  # 3. Or use: openssl rand -base64 32
+  #
+  # FORMAT: Base64 string, exactly 44 characters
+  #
+  # EXAMPLE (DO NOT USE THIS):
+  #   key: "AbC123dEf456GhI789jKl012MnO345pQr678StU901w="
+  #
+  # IMPORTANT: Each pump MUST have a UNIQUE encryption key!
+  # =================================================================
+  encryption:
+    key: "PASTE_YOUR_44_CHARACTER_BASE64_API_KEY_HERE="
+  on_client_connected:
+    then:
+      - logger.log: "API client connected successfully"
+  on_client_disconnected:
+    then:
+      - logger.log: "API client disconnected - connection will auto-recover"
+  services:
+    # Service: Play custom buzzer sound
+    - service: play_buzzer
+      variables:
+        song_str: string
+      then:
+        - rtttl.play:
+            rtttl: !lambda "return song_str;"
+
+    # Service: Run pump for specific duration
+    - service: run_pump_for_seconds
+      variables:
+        seconds: int
+      then:
+        - lambda: |-
+            ESP_LOGI("api", "Running pump for %ld seconds via API", (long)seconds);
+            // Increment counter in both modes for tracking
+            id(pump_cycle_count) += 1;
+            id(pump_cycle_sensor).publish_state(id(pump_cycle_count));
+        - switch.turn_on: pump_control
+        - delay: !lambda "return seconds * 1000;"
+        - switch.turn_off: pump_control
+
+    # Service: Run pump until output sensor detects full
+    - service: run_pump_until_full
+      then:
+        - script.execute: pump_until_full
+
+# ============================================================================
+# Time Synchronization (for interval scheduling)
+# ============================================================================
+time:
+  - platform: sntp
+    id: sntp_time
+    timezone: ${timezone}
+    servers:
+      - time.google.com
+      - 162.159.200.123 # Cloudflare NTP (IP)
+      - 129.6.15.28 # NIST NTP (IP)
+    update_interval: 300s # Re-sync every 5 minutes for reliability
+    on_time_sync:
+      then:
+        - logger.log:
+            format: "✓ Time synced: %d-%02d-%02d %02d:%02d:%02d"
+            args:
+              [
+                "id(sntp_time).now().year",
+                "id(sntp_time).now().month",
+                "id(sntp_time).now().day_of_month",
+                "id(sntp_time).now().hour",
+                "id(sntp_time).now().minute",
+                "id(sntp_time).now().second",
+              ]
+        - lambda: |-
+            // Initialize timestamp only if it's still 0 (first boot waiting for SNTP)
+            if (id(last_run_timestamp) == 0) {
+              id(last_run_timestamp) = id(sntp_time).now().timestamp;
+              ESP_LOGI("sntp", "Timestamp initialized after SNTP sync: %lu", id(last_run_timestamp));
+            }
+
+# ============================================================================
+# Global Variables
+# ============================================================================
+globals:
+  # Pump safety tracking
+  - id: pump_start_time
+    restore_value: no
+    type: uint32_t
+    initial_value: "0"
+
+  - id: safety_alert_active
+    restore_value: no
+    type: bool
+    initial_value: "false"
+
+  # Interval scheduling
+  - id: last_run_timestamp
+    type: uint32_t
+    restore_value: yes
+    initial_value: "0"
+
+  # Fallback timer tracking (millis-based when SNTP unavailable)
+  - id: last_run_millis
+    type: uint32_t
+    restore_value: no
+    initial_value: "0"
+
+  # Cycle counting (persistent across reboots)
+  - id: pump_cycle_count
+    type: int
+    restore_value: yes
+    initial_value: "0"
+
+  # Alert state
+  - id: alert_active
+    type: bool
+    restore_value: no
+    initial_value: "false"
+
+  # Last alert timestamp (for hourly alerts)
+  - id: last_alert_timestamp
+    type: uint32_t
+    restore_value: no
+    initial_value: "0"
+
+  # Boot test flag
+  - id: boot_test_complete
+    type: bool
+    restore_value: no
+    initial_value: "false"
+
+# ============================================================================
+# Buzzer Output
+# ============================================================================
+output:
+  - platform: ledc
+    pin: GPIO5
+    id: buzzer
+
+rtttl:
+  output: buzzer
+
+# ============================================================================
+# Buttons (UI Controls)
+# ============================================================================
+button:
+  # System restart
+  - platform: restart
+    icon: mdi:power-cycle
+    name: "System: Reboot"
+
+  # Factory reset (disabled by default for safety)
+  - platform: factory_reset
+    disabled_by_default: true
+    name: "System: Factory Reset"
+    id: factory_reset_all
+
+  # Manual pump run
+  - platform: template
+    name: "Manual: Run Pump"
+    id: run_pump_button
+    icon: mdi:pump
+    on_press:
+      then:
+        - lambda: |-
+            ESP_LOGI("button", "Manual pump run initiated");
+            // Increment cycle counter (in both modes for tracking)
+            id(pump_cycle_count) += 1;
+            id(pump_cycle_sensor).publish_state(id(pump_cycle_count));
+            ESP_LOGD("button", "Cycle count: %d", id(pump_cycle_count));
+
+            // Update timestamp/millis to treat as scheduled run
+            if (id(sntp_time).now().timestamp > 0) {
+              id(last_run_timestamp) = id(sntp_time).now().timestamp;
+              ESP_LOGI("button", "Timestamp updated after manual run");
+            }
+            id(last_run_millis) = millis();
+        - switch.turn_on: pump_control
+        - delay: !lambda "return (int)id(pump_run_seconds).state * 1000;"
+        - switch.turn_off: pump_control
+
+  # Run pump until output sensor detects full
+  - platform: template
+    name: "Manual: Run Until Full"
+    id: run_pump_until_out_wet
+    icon: mdi:pump
+    disabled_by_default: true
+    on_press:
+      then:
+        - script.execute: pump_until_full
+
+  # Run pump until input sensor detects empty
+  - platform: template
+    name: "Manual: Run Until Empty"
+    id: run_pump_until_in_dry
+    icon: mdi:pump
+    disabled_by_default: true
+    on_press:
+      then:
+        - script.execute: pump_until_empty
+
+  # Test buzzer
+  - platform: template
+    name: "Test: Buzzer"
+    id: play_buzzer_button
+    icon: mdi:surround-sound
+    on_press:
+      then:
+        - rtttl.play: "star_wars:d=16,o=5,b=100:4e,4e,4e,8c,p,g,4e,8c,p,g,4e,4p,4b,4b,4b,8c6,p,g,4d#,8c,p,g,4e,8p"
+
+  # Reset cycle counter
+  - platform: template
+    name: "Cycle: Reset Counter"
+    icon: mdi:restart
+    on_press:
+      then:
+        - lambda: |-
+            ESP_LOGI("button", "Cycle count reset to 0");
+            id(pump_cycle_count) = 0;
+            id(pump_cycle_sensor).publish_state(0);
+
+  # Confirm refill (auto-calculates cycle limit and resets counter)
+  - platform: template
+    name: "Cycle: Confirm Refill"
+    icon: mdi:check-circle
+    on_press:
+      then:
+        - lambda: |-
+            // Auto-calculate cycle limit based on refill size
+            // Formula: 127 oz = 200 cycles, so cycles = oz * 1.5748
+            float refill_oz = id(refill_size_oz).state;
+            int new_limit = (int)round(refill_oz * 1.5748);
+
+            ESP_LOGI("button", "Refill confirmed: %.0f oz = %d cycles", refill_oz, new_limit);
+
+            // Set new cycle limit
+            auto call = id(pump_cycle_threshold).make_call();
+            call.set_value(new_limit);
+            call.perform();
+
+            // Reset counter and alerts
+            id(pump_cycle_count) = 0;
+            id(pump_cycle_sensor).publish_state(0);
+            id(alert_active) = false;
+        - light.turn_off: rgb_light
+        - rtttl.play: "star_wars:d=16,o=5,b=100:4e,4e,4e,8c,p,g,4e,8c,p,g,4e,4p,4b,4b,4b,8c6,p,g,4d#,8c,p,g,4e,8p"
+
+  # Manual time synchronization
+  - platform: template
+    name: "System: Force Time Sync"
+    icon: mdi:clock-check
+    entity_category: config
+    on_press:
+      then:
+        - logger.log: "⟳ Manually triggering time synchronization..."
+        - lambda: |-
+            id(sntp_time).call_setup();
+
+# ============================================================================
+# Switches (Configuration Controls)
+# ============================================================================
+switch:
+  # Enable cycle limiting mode
+  - platform: template
+    name: "Cycle: Enable Limiting"
+    id: enable_cycle_limiting
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_ON
+    icon: mdi:counter
+    entity_category: config
+    on_turn_on:
+      - logger.log: "Cycle limiting enabled - finite fluid mode"
+    on_turn_off:
+      - logger.log: "Cycle limiting disabled - continuous mode"
+      - lambda: |-
+          id(alert_active) = false;
+
+  # Enable input sensor monitoring
+  - platform: template
+    name: "Sensor: Enable INPUT"
+    id: enable_input_sensor
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
+    icon: mdi:water-check
+    entity_category: config
+    on_turn_on:
+      - logger.log: "Input sensor enabled - will monitor fluid availability"
+    on_turn_off:
+      - logger.log: "Input sensor disabled - sensor ignored"
+
+  # Enable output sensor monitoring
+  - platform: template
+    name: "Sensor: Enable OUTPUT"
+    id: enable_output_sensor
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
+    icon: mdi:water-sync
+    entity_category: config
+    on_turn_on:
+      - logger.log: "Output sensor enabled"
+    on_turn_off:
+      - logger.log: "Output sensor disabled"
+
+  # Safety override (bypasses all limits)
+  - platform: template
+    name: "Safety: Override"
+    id: pump_safety_override
+    entity_category: config
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
+    icon: mdi:shield-alert-outline
+    disabled_by_default: true
+    on_turn_on:
+      - logger.log: "WARNING: Safety override enabled - all limits bypassed"
+    on_turn_off:
+      - logger.log: "Safety override disabled - normal operation"
+
+  # Enable pump and logic (master control switch)
+  - platform: template
+    name: "System: Enable Pump & Logic"
+    id: enable_pump_logic
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_ON
+    icon: mdi:power
+    entity_category: config
+    on_turn_on:
+      - logger.log: "Pump & logic enabled - normal operation"
+    on_turn_off:
+      - logger.log: "Pump & logic disabled - manual controls still work"
+      - lambda: |-
+          // Clear alerts when disabling
+          id(alert_active) = false;
+      - light.turn_off: rgb_light
+
+  # Main pump control (GPIO7)
+  - platform: gpio
+    pin: GPIO7
+    name: "Pump Control"
+    id: pump_control
+    entity_category: config
+    disabled_by_default: true
+    on_turn_on:
+      then:
+        - logger.log: "Pump turning on"
+        - lambda: |-
+            id(pump_start_time) = millis();
+            id(safety_alert_active) = false;
+        - script.execute: pump_safety_check
+    on_turn_off:
+      then:
+        - lambda: |-
+            id(pump_start_time) = 0;
+            id(safety_alert_active) = false;
+        - logger.log: "Pump turned off"
+
+# ============================================================================
+# Binary Sensors (Physical Inputs)
+# ============================================================================
+binary_sensor:
+  # Home Assistant connection status
+  - platform: status
+    name: "Status: HA Connected"
+    id: ink_ha_connected
+
+  # Physical reset button (GPIO9) with multi-click detection
+  - platform: gpio
+    id: reset_button
+    pin:
+      number: GPIO9
+      inverted: true
+      mode:
+        input: true
+        pullup: true
+    on_multi_click:
+      # 10-second hold: Factory reset
+      - timing:
+          - ON for at least 10s
+        then:
+          - logger.log: "Factory reset initiated (10s hold)"
+          - light.turn_on:
+              id: rgb_light
+              red: 100%
+              green: 0%
+              blue: 0%
+              effect: "Fast Pulse"
+          - button.press: factory_reset_all
+
+      # 3-second hold: Run test sequence
+      - timing:
+          - ON for at least 3s
+          - OFF for at least 0.2s
+        then:
+          - logger.log: "Manual test sequence initiated (3s hold)"
+          - script.execute: boot_test_sequence
+
+      # Single tap: Run pump
+      - timing:
+          - ON for at most 1s
+          - OFF for at least 0.2s
+        then:
+          - logger.log: "Physical button pump activation"
+          - lambda: |-
+              // Increment cycle counter
+              id(pump_cycle_count) += 1;
+              id(pump_cycle_sensor).publish_state(id(pump_cycle_count));
+
+              // Update timestamp/millis to treat as scheduled run
+              if (id(sntp_time).now().timestamp > 0) {
+                id(last_run_timestamp) = id(sntp_time).now().timestamp;
+                ESP_LOGI("button", "Timestamp updated after manual run");
+              }
+              id(last_run_millis) = millis();
+          - switch.turn_on: pump_control
+          - delay: !lambda "return (int)id(pump_run_seconds).state * 1000;"
+          - switch.turn_off: pump_control
+
+  # Fluid input sensor (GPIO4) - monitors source container
+  - platform: gpio
+    name: "Fluid Input"
+    id: fluid_input_sensor
+    icon: mdi:water
+    device_class: moisture
+    pin:
+      number: GPIO4
+      mode:
+        input: true
+        pullup: true
+      inverted: true
+
+  # Fluid output sensor (GPIO14) - monitors destination
+  - platform: gpio
+    name: "Fluid Output"
+    id: fluid_output_sensor
+    icon: mdi:water
+    device_class: moisture
+    pin:
+      number: GPIO14
+      mode:
+        input: true
+        pullup: true
+      inverted: true
+
+  # Alert status indicator
+  - platform: template
+    name: "Pump Alert Active"
+    lambda: |-
+      return id(alert_active);
+    icon: mdi:alert
+
+# ============================================================================
+# Number Inputs (Configuration Parameters)
+# ============================================================================
+number:
+  # Pump interval in hours (user-friendly)
+  - platform: template
+    name: "Cont: Interval (Hours)"
+    id: pump_interval_hours
+    icon: mdi:timer
+    min_value: 1
+    max_value: 168
+    step: 1
+    mode: box
+    initial_value: 6
+    unit_of_measurement: "hours"
+    restore_value: true
+    optimistic: true
+    entity_category: config
+
+  # Pump runtime in seconds
+  - platform: template
+    name: "Cont: Run Duration (Sec)"
+    id: pump_run_seconds
+    icon: mdi:timer
+    optimistic: true
+    min_value: 1
+    max_value: 500
+    step: 1
+    initial_value: 2
+    unit_of_measurement: "s"
+    restore_value: true
+    mode: box
+    entity_category: config
+
+  # Refill size input (for auto-calculating cycle limit)
+  - platform: template
+    name: "Cycle: Refill Size (oz)"
+    id: refill_size_oz
+    min_value: 1
+    max_value: 253
+    step: 1
+    mode: box
+    initial_value: 127
+    unit_of_measurement: "oz"
+    restore_value: true
+    optimistic: true
+    entity_category: config
+
+  # Maximum cycle count threshold (auto-calculated from refill size)
+  - platform: template
+    name: "Cycle: Max Count"
+    id: pump_cycle_threshold
+    min_value: 1
+    max_value: 500
+    step: 1
+    mode: box
+    initial_value: 200
+    unit_of_measurement: "cycles"
+    restore_value: true
+    optimistic: true
+    entity_category: config
+
+  # Maximum safe runtime (safety timeout)
+  - platform: template
+    name: "Safety: Max Runtime (Sec)"
+    id: max_safe_run_time
+    entity_category: config
+    icon: mdi:timer-alert
+    optimistic: true
+    min_value: 5
+    max_value: 600
+    step: 5
+    initial_value: 60
+    unit_of_measurement: "s"
+    restore_value: true
+    mode: box
+
+# ============================================================================
+# Sensors (Status Monitoring)
+# ============================================================================
+sensor:
+  # ESP internal temperature
+  - platform: internal_temperature
+    name: "ESP Temperature"
+    id: sys_esp_temperature
+    disabled_by_default: true
+
+  # System uptime
+  - platform: uptime
+    name: "Uptime"
+    id: sys_uptime
+    update_interval: 60s
+
+  # WiFi signal strength
+  - platform: wifi_signal
+    name: "RSSI"
+    id: wifi_signal_db
+    update_interval: 60s
+    entity_category: "diagnostic"
+
+  # Pump cycle counter
+  - platform: template
+    name: "Pump Cycle Count"
+    id: pump_cycle_sensor
+    lambda: |-
+      return id(pump_cycle_count);
+    update_interval: 30s
+    accuracy_decimals: 0
+    icon: mdi:counter
+
+  # Estimated remaining fluid (calculated from cycles)
+  - platform: template
+    name: "Cycle: Est. Remaining (oz)"
+    id: remaining_fluid_sensor
+    lambda: |-
+      // Calculate remaining fluid based on cycle count
+      // Formula: 127 oz = 200 cycles, so 1 cycle = 0.635 oz
+      int remaining_cycles = (int)id(pump_cycle_threshold).state - id(pump_cycle_count);
+      if (remaining_cycles < 0) remaining_cycles = 0;
+      float remaining_oz = remaining_cycles * 0.635;
+      return remaining_oz;
+    update_interval: 30s
+    accuracy_decimals: 1
+    unit_of_measurement: "oz"
+    icon: mdi:water
+    entity_category: diagnostic
+
+# ============================================================================
+# Text Sensors (Status Information)
+# ============================================================================
+text_sensor:
+  # WiFi SSID
+  - platform: wifi_info
+    ssid:
+      name: "Status: WiFi SSID"
+      icon: mdi:wifi
+
+  # Operating mode indicator
+  - platform: template
+    name: "Status: Operating Mode"
+    id: operating_mode_sensor
+    icon: mdi:cog
+    lambda: |-
+      if (id(enable_cycle_limiting).state) {
+        return {"Cycle (Dispensing)"};
+      } else {
+        return {"Continuous"};
+      }
+    update_interval: 10s
+
+  # Last auto run timestamp
+  - platform: template
+    name: "Status: Last Auto Run"
+    id: last_auto_run_sensor
+    icon: mdi:clock-outline
+    lambda: |-
+      if (id(last_run_timestamp) == 0) {
+        return {"Not Run Yet"};
+      }
+
+      // Format timestamp as readable date/time
+      if (id(sntp_time).now().is_valid()) {
+        return {ESPTime::from_epoch_local(id(last_run_timestamp)).strftime("%Y-%m-%d %H:%M:%S")};
+      } else {
+        return {"Timestamp Available"};
+      }
+    update_interval: 30s
+
+  # Next auto run timestamp
+  - platform: template
+    name: "Status: Next Auto Run"
+    id: next_auto_run_sensor
+    icon: mdi:clock-check-outline
+    lambda: |-
+      // Check if pump & logic is enabled
+      if (!id(enable_pump_logic).state) {
+        return {"Disabled"};
+      }
+
+      // Check if timestamp is initialized
+      if (id(last_run_timestamp) == 0) {
+        return {"Waiting for first run"};
+      }
+
+      // Check for conditions that block auto-run
+      if (!id(enable_cycle_limiting).state && id(enable_input_sensor).state) {
+        return {"Auto-run disabled (sensor mode)"};
+      }
+
+      if (id(enable_cycle_limiting).state && id(pump_cycle_count) >= (int)id(pump_cycle_threshold).state) {
+        return {"Blocked - refill needed"};
+      }
+
+      // Calculate next run time
+      uint32_t interval_seconds = (uint32_t)(id(pump_interval_hours).state * 3600);
+      uint32_t next_run = id(last_run_timestamp) + interval_seconds;
+
+      if (id(sntp_time).now().is_valid()) {
+        return {ESPTime::from_epoch_local(next_run).strftime("%Y-%m-%d %H:%M:%S")};
+      } else {
+        return {"Time not synced"};
+      }
+    update_interval: 30s
+
+  # SNTP sync status
+  - platform: template
+    name: "Time: SNTP Status"
+    id: sntp_status_sensor
+    icon: mdi:clock-check
+    lambda: |-
+      if (id(sntp_time).now().is_valid()) {
+        return {"✓ Synced"};
+      } else {
+        return {"✗ Not Synced"};
+      }
+    update_interval: 30s
+
+  # Current timezone display
+  - platform: template
+    name: "Time: Current Timezone"
+    id: current_timezone_sensor
+    icon: mdi:map-clock
+    lambda: |-
+      return {id(timezone_input).state.c_str()};
+    update_interval: 60s
+
+# ============================================================================
+# Text Inputs (User Configuration)
+# ============================================================================
+text:
+  # Timezone configuration (UI-editable)
+  - platform: template
+    name: "Time: Timezone"
+    id: timezone_input
+    icon: mdi:map-clock-outline
+    optimistic: true
+    min_length: 3
+    max_length: 50
+    mode: text
+    initial_value: ${timezone}
+    entity_category: config
+    on_value:
+      then:
+        - logger.log:
+            format: "Timezone changed to: %s - Reboot required for changes to take effect"
+            args: ["x.c_str()"]
+
+# ============================================================================
+# RGB LED (Status Indicator)
+# ============================================================================
+light:
+  - platform: esp32_rmt_led_strip
+    id: rgb_light
+    name: "RGB Light"
+    pin: GPIO3
+    default_transition_length: 0s
+    chipset: WS2812
+    num_leds: 1
+    rgb_order: grb
+    max_refresh_rate: 20ms
+    effects:
+      - pulse:
+          name: "Slow Pulse"
+          transition_length: 1000ms
+          update_interval: 1000ms
+          min_brightness: 0%
+          max_brightness: 100%
+      - pulse:
+          name: "Fast Pulse"
+          transition_length: 100ms
+          update_interval: 100ms
+          min_brightness: 50%
+          max_brightness: 100%
+      - strobe:
+          name: "Fast Flash"
+          colors:
+            - state: true
+              duration: 500ms
+            - state: false
+              duration: 500ms
+
+# ============================================================================
+# Scripts (Automation Logic)
+# ============================================================================
+script:
+  # Boot test sequence
+  - id: boot_test_sequence
+    mode: single
+    then:
+      - if:
+          condition:
+            lambda: "return id(boot_test_complete);"
+          then:
+            - logger.log: "Boot test already completed, running manual test"
+      - logger.log: "Starting boot test sequence"
+
+      # Test 1: Buzzer (Siren)
+      - logger.log: "Test 1/3: Buzzer - Siren"
+      - rtttl.play: "siren:d=8,o=5,b=100:d,e,d,e,d,e,d,e"
+      - delay: 2s
+
+      # Test 2: LED cycle
+      - logger.log: "Test 2/3: LED Cycle"
+      - light.turn_on:
+          id: rgb_light
+          red: 100%
+          green: 0%
+          blue: 0%
+          brightness: 100%
+      - delay: 1s
+      - light.turn_on:
+          id: rgb_light
+          red: 0%
+          green: 100%
+          blue: 0%
+          brightness: 100%
+      - delay: 1s
+      - light.turn_on:
+          id: rgb_light
+          red: 0%
+          green: 0%
+          blue: 100%
+          brightness: 100%
+      - delay: 1s
+      - light.turn_on:
+          id: rgb_light
+          red: 100%
+          green: 100%
+          blue: 100%
+          brightness: 100%
+      - delay: 1s
+      - light.turn_off: rgb_light
+
+      # Test 3: Pump
+      - logger.log: "Test 3/3: Pump"
+      - switch.turn_on: pump_control
+      - delay: 1s
+      - switch.turn_off: pump_control
+
+      - logger.log: "Boot test sequence complete"
+      - lambda: "id(boot_test_complete) = true;"
+
+  # WiFi status check with LED feedback
+  - id: wifi_status_check
+    mode: restart
+    then:
+      - delay: 10s # Wait for boot test to complete
+      - if:
+          condition:
+            wifi.connected:
+          then:
+            - if:
+                condition:
+                  lambda: "return id(ink_ha_connected).state;"
+                then:
+                  - logger.log: "Connected to Home Assistant"
+                  - rtttl.play: "beep:d=4,o=5,b=200:e,p,e,p,e"
+                  - light.turn_on:
+                      id: rgb_light
+                      red: 50%
+                      green: 0%
+                      blue: 100%
+                      brightness: 100%
+                  - delay: 30s
+                  - light.turn_off: rgb_light
+                else:
+                  - logger.log: "Connected to WiFi only"
+                  - light.turn_on:
+                      id: rgb_light
+                      red: 0%
+                      green: 100%
+                      blue: 0%
+                      brightness: 100%
+                  - delay: 5s
+                  - light.turn_off: rgb_light
+          else:
+            - logger.log: "AP mode active - waiting for WiFi configuration"
+            - light.turn_on:
+                id: rgb_light
+                red: 0%
+                green: 0%
+                blue: 100%
+                brightness: 100%
+            # Keep LED on in AP mode (don't turn off)
+
+  # WiFi connected feedback
+  - id: wifi_connected_feedback
+    mode: restart
+    then:
+      - logger.log: "WiFi connection successful"
+      - rtttl.play: "beep:d=4,o=5,b=200:e,p,e"
+      - light.turn_on:
+          id: rgb_light
+          red: 0%
+          green: 100%
+          blue: 0%
+          brightness: 100%
+      - delay: 30s
+      - light.turn_off: rgb_light
+
+  # WiFi error feedback
+  - id: wifi_error_feedback
+    mode: restart
+    then:
+      - logger.log: "WiFi connection failed"
+      - light.turn_on:
+          id: rgb_light
+          red: 100%
+          green: 100%
+          blue: 0%
+          brightness: 100%
+          effect: "Fast Flash"
+
+  # Pump until full (sensor-based)
+  - id: pump_until_full
+    then:
+      - switch.turn_on: enable_output_sensor
+      - delay: 100ms
+      - switch.turn_on: pump_control
+
+  # Pump until empty (sensor-based)
+  - id: pump_until_empty
+    then:
+      - switch.turn_on: enable_input_sensor
+      - delay: 100ms
+      - switch.turn_on: pump_control
+
+  # Pump safety check (monitors runtime and conditions)
+  - id: pump_safety_check
+    mode: restart
+    then:
+      - while:
+          condition:
+            - switch.is_on: pump_control
+          then:
+            # Check if output sensor detects full
+            - if:
+                condition:
+                  - and:
+                      - switch.is_on: enable_output_sensor
+                      - binary_sensor.is_on: fluid_output_sensor
+                then:
+                  - logger.log: "Pump stopping - output full"
+                  - switch.turn_off: pump_control
+
+            # Check if input sensor detects empty
+            - if:
+                condition:
+                  - and:
+                      - switch.is_on: enable_input_sensor
+                      - lambda: "return !id(fluid_input_sensor).state;"
+                then:
+                  - logger.log: "Pump stopping - input empty"
+                  - switch.turn_off: pump_control
+
+            # Check safety timeout
+            - if:
+                condition:
+                  - lambda: |-
+                      if (id(pump_start_time) == 0) return false;
+                      uint32_t runtime = (millis() - id(pump_start_time)) / 1000;
+                      return runtime > id(max_safe_run_time).state && !id(pump_safety_override).state;
+                then:
+                  - logger.log: "Pump stopping - safety timeout"
+                  - switch.turn_off: pump_control
+                  - rtttl.play: "alarm:d=4,o=5,b=200:e,e,e"
+
+            - delay: 1s
+
+  # Buzzer alert (for sensor/threshold alerts)
+  - id: run_buzzer_alert
+    mode: restart
+    then:
+      - rtttl.play: "siren:d=8,o=5,b=100:d,e,d,e,d,e,d,e"
+
+# ============================================================================
+# Interval Timers (Automated Pump Scheduling)
+# ============================================================================
+interval:
+  # Main pump scheduling logic (runs every 60 seconds)
+  - interval: 60s
+    then:
+      - lambda: |-
+          // ===== CHECK ENABLE SWITCH =====
+          if (!id(enable_pump_logic).state) {
+            ESP_LOGD("interval", "Pump & logic disabled - skipping auto-run");
+            return;
+          }
+
+          // ===== CONTINUOUS MODE WITH SENSOR ENABLED =====
+          // In continuous mode, if sensor is enabled, disable auto-run
+          // (preparing for future sensor-triggered operation)
+          if (!id(enable_cycle_limiting).state && id(enable_input_sensor).state) {
+            ESP_LOGD("interval", "Continuous mode with sensor enabled - auto-run disabled");
+            return;
+          }
+
+          // ===== CYCLE LIMITING MODE - CHECK THRESHOLD WITH AUTO-INCREMENT =====
+          if (id(enable_cycle_limiting).state) {
+            if (id(pump_cycle_count) >= (int)id(pump_cycle_threshold).state) {
+              // Check if input sensor is enabled and detects fluid
+              if (id(enable_input_sensor).state && id(fluid_input_sensor).state) {
+                // Fluid detected - auto-increment threshold by 10 cycles
+                int new_threshold = (int)id(pump_cycle_threshold).state + 10;
+                auto call = id(pump_cycle_threshold).make_call();
+                call.set_value(new_threshold);
+                call.perform();
+                ESP_LOGI("interval", "Fluid detected - auto-incremented threshold from %d to %d cycles",
+                         (int)id(pump_cycle_threshold).state, new_threshold);
+                // Continue to pump execution (don't return)
+              } else {
+                // No fluid detected or sensor disabled - trigger alert
+                if (!id(alert_active)) {
+                  ESP_LOGW("interval", "Cycle threshold reached: %d/%d",
+                           id(pump_cycle_count), (int)id(pump_cycle_threshold).state);
+                  id(alert_active) = true;
+                  id(run_buzzer_alert).execute();
+                }
+                return;  // Block pump execution
+              }
+            }
+          }
+
+          // ===== CHECK INPUT SENSOR (CYCLE MODE ONLY) =====
+          if (id(enable_cycle_limiting).state && id(enable_input_sensor).state) {
+            if (!id(fluid_input_sensor).state) {
+              // Sensor reads DRY - block auto-run and alert
+              if (!id(alert_active)) {
+                ESP_LOGW("interval", "Input sensor dry - blocking auto-run");
+                id(alert_active) = true;
+                id(run_buzzer_alert).execute();
+              }
+              return;
+            }
+          }
+
+          // ===== TIME TRACKING WITH FALLBACK =====
+          uint32_t interval_seconds = (uint32_t)(id(pump_interval_hours).state * 3600);
+          bool should_run = false;
+
+          // Try SNTP timestamp first (preferred method)
+          if (id(sntp_time).now().timestamp > 0 && id(last_run_timestamp) > 0) {
+            uint32_t now = id(sntp_time).now().timestamp;
+            uint32_t elapsed = now - id(last_run_timestamp);
+            ESP_LOGD("interval", "SNTP Time check - Elapsed: %lu, Required: %lu", (unsigned long)elapsed, (unsigned long)interval_seconds);
+            
+            if (elapsed >= interval_seconds) {
+              should_run = true;
+              id(last_run_timestamp) = now;
+            }
+          }
+          // Fallback to millis() if SNTP never synced
+          else {
+            // Initialize millis tracker on first run
+            if (id(last_run_millis) == 0) {
+              id(last_run_millis) = millis();
+              ESP_LOGI("interval", "Fallback timer initialized - SNTP unavailable");
+            }
+            
+            uint32_t current_millis = millis();
+            uint32_t elapsed_millis;
+            
+            // Handle millis() rollover (occurs every ~49.7 days)
+            if (current_millis >= id(last_run_millis)) {
+              elapsed_millis = current_millis - id(last_run_millis);
+            } else {
+              // Rollover occurred
+              elapsed_millis = (0xFFFFFFFF - id(last_run_millis)) + current_millis;
+            }
+            
+            uint32_t elapsed_seconds = elapsed_millis / 1000;
+            ESP_LOGD("interval", "Fallback timer - Elapsed: %lu, Required: %lu (SNTP unavailable)", (unsigned long)elapsed_seconds, (unsigned long)interval_seconds);
+            
+            if (elapsed_seconds >= interval_seconds) {
+              should_run = true;
+              id(last_run_millis) = current_millis;
+              ESP_LOGI("interval", "Using fallback timer - SNTP still not synced");
+            }
+          }
+
+          // ===== EXECUTE PUMP IF INTERVAL ELAPSED =====
+          if (should_run) {
+            ESP_LOGI("interval", "Interval elapsed - running pump");
+            id(run_pump_button).press();
+          }
+
+  # Alert buzzer (plays hourly when alert is active)
+  - interval: 60s
+    then:
+      - lambda: |-
+          // Skip if pump & logic disabled
+          if (!id(enable_pump_logic).state) {
+            return;
+          }
+
+          // Check if alert is active
+          if (id(alert_active)) {
+            // Get current time
+            uint32_t now;
+            if (id(sntp_time).now().timestamp > 0) {
+              now = id(sntp_time).now().timestamp;
+            } else {
+              now = millis() / 1000;
+            }
+
+            // Play alert every hour (3600 seconds)
+            if (now - id(last_alert_timestamp) >= 3600) {
+              ESP_LOGI("alert", "Playing hourly alert");
+              id(last_alert_timestamp) = now;
+              id(run_buzzer_alert).execute();
+            }
+          }
+
+  # LED status indicator (shows alert/warning states)
+  - interval: 60s
+    then:
+      - lambda: |-
+          auto count = id(pump_cycle_count);
+          auto threshold = (int)id(pump_cycle_threshold).state;
+
+          // Turn off LED if pump & logic disabled
+          if (!id(enable_pump_logic).state) {
+            id(rgb_light).turn_off().perform();
+            return;
+          }
+
+          // Turn off LED if cycle limiting disabled
+          if (!id(enable_cycle_limiting).state) {
+            id(rgb_light).turn_off().perform();
+            return;
+          }
+
+          // Alert active (threshold reached or sensor dry)
+          if (id(alert_active)) {
+            auto call = id(rgb_light).turn_on();
+            call.set_rgb(1.0, 0.0, 0.0);  // Red
+            call.set_brightness(1.0);
+            call.set_effect("Slow Pulse");
+            call.perform();
+            return;
+          }
+
+          // Warning (within 10 cycles of threshold)
+          if (count >= threshold - 10) {
+            auto call = id(rgb_light).turn_on();
+            call.set_rgb(1.0, 1.0, 0.0);  // Yellow
+            call.set_brightness(1.0);
+            call.set_effect("Slow Pulse");
+            call.perform();
+            return;
+          }
+
+          // Normal operation - LED off
+          id(rgb_light).turn_off().perform();
+
+  # WiFi/AP mode LED monitor (keeps LED blue in AP mode)
+  - interval: 5s
+    then:
+      - lambda: |-
+          // Skip if pump & logic disabled
+          if (!id(enable_pump_logic).state) {
+            return;
+          }
+
+          // Skip if cycle limiting is active (let alert LEDs take priority)
+          if (id(enable_cycle_limiting).state && id(alert_active)) {
+            return;
+          }
+
+          // Check WiFi connection status
+          if (!id(ink_ha_connected).state && !wifi::global_wifi_component->is_connected()) {
+            // AP mode active - keep LED solid blue
+            auto call = id(rgb_light).turn_on();
+            call.set_rgb(0.0, 0.0, 1.0);  // Blue
+            call.set_brightness(1.0);
+            call.perform();
+          }

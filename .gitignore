@@ -1,0 +1,53 @@
+# Apollo Pump - Git Ignore Configuration
+# Only allow firmware and card templates to be uploaded
+
+# Allow these specific files
+!apollo-pump-1-dual-mode.yaml
+!HASS-Apollo-Pump-Card-Template.yaml
+!HASS-Apollo-Pump-Card-Auto-Entities.yaml
+!README.md
+
+# Ignore everything in MyPumps directory (personal configurations)
+MyPumps/
+
+# ESPHome build artifacts
+.esphome/
+*.bin
+*.elf
+*.map
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*markdownlint.json
+
+# Secrets and credentials
+secrets.yaml
+secrets.yml
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.bak
+*.backup
+.cache/
+
+# OS files
+Thumbs.db
+desktop.ini

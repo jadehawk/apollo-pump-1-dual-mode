@@ -1,0 +1,121 @@
+# ============================================================
+# 💦 Apollo Pump-1 - Auto-Entities Card (Multiple Pumps)
+# ============================================================
+# This card automatically detects ALL Apollo Pump devices
+# and displays them in a single unified card.
+#
+# REQUIREMENTS:
+# - HACS installed (https://hacs.xyz/)
+# - auto-entities custom card installed via HACS
+#   (HACS > Frontend > Search "auto-entities" > Install)
+# - fold-entity-row custom card installed via HACS
+#   (HACS > Frontend > Search "fold-entity-row" > Install)
+#
+# FEATURES:
+# - Automatically finds all apollo-pump-1-* devices
+# - No manual editing needed
+# - Perfect for multiple pumps
+# - Updates automatically when you add new pumps
+#
+# SETUP:
+# 1. Install required custom cards (see above)
+# 2. Copy this entire file content
+# 3. In Home Assistant dashboard:
+#    - Click "Edit Dashboard" (top right)
+#    - Click "Add Card" > "Manual" (at bottom)
+#    - Paste the YAML
+# ============================================================
+
+type: custom:auto-entities
+card:
+  type: entities
+  title: 💦 Apollo Pump-1 (All Devices)
+  show_header_toggle: false
+  state_color: true
+filter:
+  include:
+    # Main Controls
+    - entity_id: "switch.apollo_pump_1_*_system_enable_pump_logic"
+      options:
+        name: "🔌 System Enable"
+        icon: mdi:power
+    - entity_id: "button.apollo_pump_1_*_manual_run_pump"
+      options:
+        name: "▶️ Manual Run"
+        icon: mdi:play-circle
+    - entity_id: "button.apollo_pump_1_*_manual_run_until_full"
+      options:
+        name: "▶️ Run Until Full"
+        icon: mdi:play-circle-outline
+    - entity_id: "button.apollo_pump_1_*_manual_run_until_empty"
+      options:
+        name: "▶️ Run Until Empty"
+        icon: mdi:play-circle-outline
+
+    # Operating Mode
+    - entity_id: "sensor.apollo_pump_1_*_status_operating_mode"
+      options:
+        name: "📊 Operating Mode"
+        icon: mdi:cog
+    - entity_id: "sensor.apollo_pump_1_*_status_last_auto_run"
+      options:
+        name: "🕐 Last Auto Run"
+        icon: mdi:clock-outline
+    - entity_id: "sensor.apollo_pump_1_*_status_next_auto_run"
+      options:
+        name: "🕑 Next Auto Run"
+        icon: mdi:clock-check-outline
+
+    # Cycle Management
+    - entity_id: "sensor.apollo_pump_1_*_pump_cycle_count"
+      options:
+        name: "🔢 Pump Cycles"
+        icon: mdi:counter
+    - entity_id: "sensor.apollo_pump_1_*_cycle_est_remaining_oz"
+      options:
+        name: "💧 Est. Remaining (oz)"
+        icon: mdi:water-percent
+    - entity_id: "binary_sensor.apollo_pump_1_*_pump_alert_active"
+      options:
+        name: "⚠️ Alert Active"
+        icon: mdi:alert
+
+    # Time Synchronization
+    - entity_id: "text.apollo_pump_1_*_time_timezone"
+      options:
+        name: "🌍 Timezone"
+        icon: mdi:map-clock-outline
+    - entity_id: "sensor.apollo_pump_1_*_time_sntp_status"
+      options:
+        name: "📡 SNTP Status"
+        icon: mdi:clock-check
+    - entity_id: "sensor.apollo_pump_1_*_time_current_timezone"
+      options:
+        name: "🗺️ Active Timezone"
+        icon: mdi:map-clock
+    - entity_id: "button.apollo_pump_1_*_system_force_time_sync"
+      options:
+        name: "🔄 Force Time Sync"
+        icon: mdi:clock-check
+
+    # Status
+    - entity_id: "binary_sensor.apollo_pump_1_*_status_ha_connected"
+      options:
+        name: "🏠 HA Connected"
+        icon: mdi:home-assistant
+    - entity_id: "sensor.apollo_pump_1_*_rssi"
+      options:
+        name: "📶 Signal"
+        icon: mdi:signal
+
+    # System Controls
+    - entity_id: "button.apollo_pump_1_*_system_reboot"
+      options:
+        name: "🔄 Reboot"
+        icon: mdi:restart-alert
+
+  exclude: []
+
+sort:
+  method: friendly_name
+  reverse: false

@@ -1,0 +1,270 @@
+# ============================================================
+# Apollo Pump - Home Assistant Card Template
+# ============================================================
+# SETUP INSTRUCTIONS:
+# 1. Find your device's MAC suffix in ESPHome or Home Assistant
+#    - In ESPHome: Look for device name like "apollo-pump-1-a1b2c3"
+#    - In Home Assistant: Check Settings > Devices > Apollo Pump
+#    - The suffix is the last 6 characters (e.g., "a1b2c3")
+#
+# 2. Use Find & Replace in your text editor:
+#    Find:    {DEVICE_SUFFIX}
+#    Replace: your-actual-suffix (e.g., a1b2c3)
+#
+# 3. Copy the entire card into Home Assistant dashboard
+#    - Go to your dashboard
+#    - Click "Edit Dashboard" (top right)
+#    - Click "Add Card" > "Manual" (at bottom)
+#    - Paste the modified YAML
+#
+# REQUIREMENTS:
+# - HACS installed (https://hacs.xyz/)
+# - fold-entity-row custom card installed via HACS
+#   (HACS > Frontend > Search "fold-entity-row" > Install)
+# ============================================================
+
+type: entities
+title: 💦 Apollo Pump-1
+show_header_toggle: false
+state_color: true
+entities:
+  # Main Controls - Always Visible
+  - entity: switch.apollo_pump_1_{DEVICE_SUFFIX}_system_enable_pump_logic
+    name: "🔌 System Enable"
+    icon: mdi:power
+  - entity: button.apollo_pump_1_{DEVICE_SUFFIX}_manual_run_pump
+    name: "▶️ Manual Run"
+    icon: mdi:play-circle
+
+  # Operating Mode - Always Visible
+  - entity: sensor.apollo_pump_1_{DEVICE_SUFFIX}_status_operating_mode
+    name: "📊 Operating Mode"
+    icon: mdi:cog
+  - entity: sensor.apollo_pump_1_{DEVICE_SUFFIX}_pump_cycle_count
+    name: "🔢 Pump Cycles"
+    icon: mdi:counter
+  - entity: sensor.apollo_pump_1_{DEVICE_SUFFIX}_status_last_auto_run
+    name: "🕐 Last Auto Run"
+    icon: mdi:clock-outline
+  - entity: sensor.apollo_pump_1_{DEVICE_SUFFIX}_status_next_auto_run
+    name: "🕑 Next Auto Run"
+    icon: mdi:clock-check-outline
+
+  # Run Until Full - Only visible when OUTPUT sensor is ON
+  - type: conditional
+    conditions:
+      - entity: switch.apollo_pump_1_{DEVICE_SUFFIX}_sensor_enable_output
+        state: "on"
+    row:
+      entity: button.apollo_pump_1_{DEVICE_SUFFIX}_manual_run_until_full
+      name: "▶️ Run Until Full"
+      icon: mdi:play-circle-outline
+
+  # Run Until Empty - Only visible when INPUT sensor is ON AND in Continuous Mode
+  - type: conditional
+    conditions:
+      - entity: switch.apollo_pump_1_{DEVICE_SUFFIX}_sensor_enable_input
+        state: "on"
+      - entity: switch.apollo_pump_1_{DEVICE_SUFFIX}_cycle_enable_limiting
+        state: "off"
+    row:
+      entity: button.apollo_pump_1_{DEVICE_SUFFIX}_manual_run_until_empty
+      name: "▶️ Run Until Empty"
+      icon: mdi:play-circle-outline
+
+  - type: divider
+
+  # Main Settings Section - Contains all collapsible sections
+  - type: custom:fold-entity-row
+    head:
+      type: section
+      label: ⚙️ Settings
+    padding: 5
+    entities:
+      # Mode Settings - Collapsible
+      - type: custom:fold-entity-row
+        head:
+          type: section
+          label: ⚙️ Mode Settings
+        padding: 5
+        entities:
+          - entity: switch.apollo_pump_1_{DEVICE_SUFFIX}_cycle_enable_limiting
+            name: "🔄 Mode: Continuous ↔ Cycle (Dispensing)"
+            icon: mdi:sync
+
+      # CYCLE MODE ENTITIES - Only visible when Cycle Limiting is ON
+      - type: conditional
+        conditions:
+          - entity: switch.apollo_pump_1_{DEVICE_SUFFIX}_cycle_enable_limiting
+            state: "on"
+        row:
+          type: custom:fold-entity-row
+          head:
+            type: section
+            label: 🔄 Cycle Management
+          padding: 5
+          entities:
+            - entity: number.apollo_pump_1_{DEVICE_SUFFIX}_cont_interval_hours
+              name: "Interval (Hours)"
+              icon: mdi:timer-outline
+            - entity: number.apollo_pump_1_{DEVICE_SUFFIX}_cont_run_duration_sec
+              name: "Run Duration (Seconds)"
+              icon: mdi:timer-sand
+            - entity: sensor.apollo_pump_1_{DEVICE_SUFFIX}_pump_cycle_count
+              name: "Cycle Count"
+              icon: mdi:counter
+            - entity: sensor.apollo_pump_1_{DEVICE_SUFFIX}_cycle_est_remaining_oz
+              name: "Est. Remaining (oz)"
+              icon: mdi:water-percent
+            - entity: binary_sensor.apollo_pump_1_{DEVICE_SUFFIX}_pump_alert_active
+              name: "Alert Active"
+              icon: mdi:alert
+            - entity: number.apollo_pump_1_{DEVICE_SUFFIX}_cycle_max_count
+              name: "Max Cycle Count"
+              icon: mdi:numeric
+            - entity: number.apollo_pump_1_{DEVICE_SUFFIX}_cycle_refill_size_oz
+              name: "Refill Size (oz)"
+              icon: mdi:cup-water
+            - entity: button.apollo_pump_1_{DEVICE_SUFFIX}_cycle_confirm_refill
+              name: "✅ Confirm Refill"
+              icon: mdi:check-circle
+            - entity: button.apollo_pump_1_{DEVICE_SUFFIX}_cycle_reset_counter
+              name: "🔄 Reset Counter"
+              icon: mdi:restart
+
+      # CONTINUOUS MODE ENTITIES - Only visible when Cycle Limiting is OFF
+      - type: conditional
+        conditions:
+          - entity: switch.apollo_pump_1_{DEVICE_SUFFIX}_cycle_enable_limiting
+            state: "off"
+        row:
+          type: custom:fold-entity-row
+          head:
+            type: section
+            label: ⏱️ Continuous Operation
+          padding: 5
+          entities:
+            - entity: number.apollo_pump_1_{DEVICE_SUFFIX}_cont_interval_hours
+              name: "Interval (Hours)"
+              icon: mdi:timer-outline
+            - entity: number.apollo_pump_1_{DEVICE_SUFFIX}_cont_run_duration_sec
+              name: "Run Duration (Seconds)"
+              icon: mdi:timer-sand
+
+      # Time Synchronization - NEW SECTION
+      - type: custom:fold-entity-row
+        head:
+          type: section
+          label: ⏰ Time Synchronization
+        padding: 5
+        entities:
+          - entity: text.apollo_pump_1_{DEVICE_SUFFIX}_time_timezone
+            name: "🌍 Timezone"
+            icon: mdi:map-clock-outline
+          - entity: sensor.apollo_pump_1_{DEVICE_SUFFIX}_time_sntp_status
+            name: "📡 SNTP Status"
+            icon: mdi:clock-check
+          - entity: sensor.apollo_pump_1_{DEVICE_SUFFIX}_time_current_timezone
+            name: "🗺️ Active Timezone"
+            icon: mdi:map-clock
+          - entity: button.apollo_pump_1_{DEVICE_SUFFIX}_system_force_time_sync
+            name: "🔄 Force Time Sync"
+            icon: mdi:clock-check
+          - type: divider
+          - entity: sensor.apollo_pump_1_{DEVICE_SUFFIX}_status_last_auto_run
+            name: "Last Auto Run"
+            icon: mdi:clock-outline
+          - entity: sensor.apollo_pump_1_{DEVICE_SUFFIX}_status_next_auto_run
+            name: "Next Auto Run"
+            icon: mdi:clock-check-outline
+
+      # Status & Monitoring
+      - type: custom:fold-entity-row
+        head:
+          type: section
+          label: 📊 Status & Monitoring
+        padding: 5
+        entities:
+          - entity: binary_sensor.apollo_pump_1_{DEVICE_SUFFIX}_status_ha_connected
+            name: "Home Assistant"
+            icon: mdi:home-assistant
+          - entity: sensor.apollo_pump_1_{DEVICE_SUFFIX}_status_wifi_ssid
+            name: "WiFi Network"
+            icon: mdi:wifi
+          - entity: sensor.apollo_pump_1_{DEVICE_SUFFIX}_rssi
+            name: "Signal Strength"
+            icon: mdi:signal
+          - entity: sensor.apollo_pump_1_{DEVICE_SUFFIX}_uptime
+            name: "Uptime"
+            icon: mdi:clock-outline
+
+      # Sensors - Conditional visibility based on sensor settings
+      - type: custom:fold-entity-row
+        head:
+          type: section
+          label: 🔍 Sensors
+        padding: 5
+        entities:
+          - type: conditional
+            conditions:
+              - entity: switch.apollo_pump_1_{DEVICE_SUFFIX}_sensor_enable_input
+                state: "on"
+            row:
+              entity: binary_sensor.apollo_pump_1_{DEVICE_SUFFIX}_fluid_input
+              name: "Fluid Input"
+              icon: mdi:water-check
+          - type: conditional
+            conditions:
+              - entity: switch.apollo_pump_1_{DEVICE_SUFFIX}_sensor_enable_output
+                state: "on"
+            row:
+              entity: binary_sensor.apollo_pump_1_{DEVICE_SUFFIX}_fluid_output
+              name: "Fluid Output"
+              icon: mdi:water-sync
+          - entity: sensor.apollo_pump_1_{DEVICE_SUFFIX}_esp_temperature
+            name: "ESP Temperature"
+            icon: mdi:thermometer
+
+      # Safety & Sensor Settings
+      - type: custom:fold-entity-row
+        head:
+          type: section
+          label: 🛡️ Safety & Sensor Settings
+        padding: 5
+        entities:
+          - entity: number.apollo_pump_1_{DEVICE_SUFFIX}_safety_max_runtime_sec
+            name: "Max Runtime (Seconds)"
+            icon: mdi:shield-alert
+          - entity: switch.apollo_pump_1_{DEVICE_SUFFIX}_safety_override
+            name: "Safety Override"
+            icon: mdi:shield-off
+          - entity: switch.apollo_pump_1_{DEVICE_SUFFIX}_sensor_enable_input
+            name: "Enable INPUT Sensor"
+            icon: mdi:radar
+          - entity: switch.apollo_pump_1_{DEVICE_SUFFIX}_sensor_enable_output
+            name: "Enable OUTPUT Sensor"
+            icon: mdi:water-alert
+
+      # Additional Controls
+      - type: custom:fold-entity-row
+        head:
+          type: section
+          label: 🎛️ Additional Controls
+        padding: 5
+        entities:
+          - entity: light.apollo_pump_1_{DEVICE_SUFFIX}_rgb_light
+            name: "RGB Light"
+            icon: mdi:lightbulb
+          - entity: button.apollo_pump_1_{DEVICE_SUFFIX}_test_buzzer
+            name: "Test Buzzer"
+            icon: mdi:volume-high
+          - entity: switch.apollo_pump_1_{DEVICE_SUFFIX}_pump_control
+            name: "Pump Control"
+            icon: mdi:pump
+          - type: divider
+          - entity: button.apollo_pump_1_{DEVICE_SUFFIX}_system_reboot
+            name: "🔄 System Reboot"
+            icon: mdi:restart-alert
+          - entity: button.apollo_pump_1_{DEVICE_SUFFIX}_system_factory_reset
+            name: "⚠️ Factory Reset"
+            icon: mdi:alert-octagon
