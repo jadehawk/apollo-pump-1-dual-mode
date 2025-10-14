@@ -43,6 +43,17 @@ entities:
   - entity: sensor.apollo_pump_1_{DEVICE_SUFFIX}_status_pump_diagnostic
     name: "🔍 Pump Status"
     icon: mdi:information-outline
+
+  # Fluid Est. Remaining (oz) - Only visible in Cycle (Dispensing) Mode
+  - type: conditional
+    conditions:
+      - entity: switch.apollo_pump_1_{DEVICE_SUFFIX}_cycle_enable_limiting
+        state: "on"
+    row:
+      entity: sensor.apollo_pump_1_{DEVICE_SUFFIX}_cycle_est_remaining_oz
+      name: "💧 Fluid Est. Remaining (oz)"
+      icon: mdi:water-percent
+
   - entity: sensor.apollo_pump_1_{DEVICE_SUFFIX}_pump_cycle_count
     name: "🔢 Pump Cycles"
     icon: mdi:counter
@@ -114,7 +125,7 @@ entities:
           type: custom:fold-entity-row
           head:
             type: section
-            label: 🔄 Cycle Management
+            label: 🔄 Cycle Mode Management
           padding: 5
           entities:
             - entity: number.apollo_pump_1_{DEVICE_SUFFIX}_cont_interval_hours
@@ -127,7 +138,7 @@ entities:
               name: "Cycle Count"
               icon: mdi:counter
             - entity: sensor.apollo_pump_1_{DEVICE_SUFFIX}_cycle_est_remaining_oz
-              name: "Est. Remaining (oz)"
+              name: "Fluid Est. Remaining (oz)"
               icon: mdi:water-percent
             - entity: binary_sensor.apollo_pump_1_{DEVICE_SUFFIX}_pump_alert_active
               name: "Alert Active"
@@ -154,7 +165,7 @@ entities:
           type: custom:fold-entity-row
           head:
             type: section
-            label: ⏱️ Continuous Operation
+            label: ⏱️ Continuous Mode Management
           padding: 5
           entities:
             - entity: number.apollo_pump_1_{DEVICE_SUFFIX}_cont_interval_hours
@@ -163,6 +174,9 @@ entities:
             - entity: number.apollo_pump_1_{DEVICE_SUFFIX}_cont_run_duration_sec
               name: "Run Duration (Seconds)"
               icon: mdi:timer-sand
+            - entity: button.apollo_pump_1_{DEVICE_SUFFIX}_cycle_reset_counter
+              name: "🔄 Reset Counter"
+              icon: mdi:restart
 
       # Time Synchronization - NEW SECTION
       - type: custom:fold-entity-row
