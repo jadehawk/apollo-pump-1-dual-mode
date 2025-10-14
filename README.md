@@ -402,7 +402,7 @@ esphome run apollo-pump-1-dual-mode.yaml
 
 ## 🎨 Home Assistant Dashboard Cards
 
-<img src="HomeAssistant Card/HASS Card (Dual Mode Shown) Setting Collapsed.png" alt="Home Assistant Card" width="250">
+<img src="HomeAssistant Card/Updated Hass Card 001 - Main Section.png" alt="Home Assistant Card" width="800">
 
 **📸 [View All Card Screenshots](HomeAssistant%20Card/Cards.md)** - See the dashboard card in various states and configurations
 
@@ -637,7 +637,7 @@ This custom firmware enables a wide variety of real-world applications. Below ar
 
 ### 🌊 AC Drain Line Purge System
 
-<img src="Projects/AC Drain Line Purge/01 - AC Drain Line Purge 001.jpg" alt="AC Drain Line Purge System" width="250">
+<img src="Projects/AC Drain Line Purge/01 - AC Drain Line Purge 001.jpg" alt="AC Drain Line Purge System" width="800">
 
 **Project Type:** Continuous Mode - Automated Water Evacuation
 
@@ -671,7 +671,7 @@ The system will be upgraded with a water level sensor to trigger the pump only w
 
 ### 🧪 AC Drain Pan Cleaning Dispenser
 
-<img src="Projects/AC Drain Pan Cleaning Dispenser/01 - Cleaning Agent Dirspenser 001.jpg" alt="AC Drain Pan Cleaning Dispenser" width="250">
+<img src="Projects/AC Drain Pan Cleaning Dispenser/01 - Cleaning Agent Dirspenser 001.jpg" alt="AC Drain Pan Cleaning Dispenser" width="800">
 
 **Project Type:** Cycle Mode - Automated Cleaning Agent Dispensing
 
