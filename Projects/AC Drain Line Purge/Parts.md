@@ -8,7 +8,7 @@
 | ------------------------------------------------- | ---------- | ------------------------------------------------------------------------ |
 | Apollo Pump-1                                     | $32.99 USD | [Purchase Link](https://apolloautomation.com/products/pump-1-fluid-pump) |
 | Waterproof Enclosure (5.9"x5.9"x3.5")             | $15.89 USD | [Amazon Link](https://a.co/d/6tjYrfX)                                    |
-| Solar Panel (5V, 5W minimum)                      | $16.99 USD | [Amazon Link](https://a.co/d/c5WGivL)                                    |
+| Solar Panel (6V, 5W minimum)                      | $19.99 USD | [Amazon Link](https://a.co/d/hIlSbSB)                                    |
 | Powerbank (Voltaic Systems V50)                   | $74.00 USD | [Amazon Link](https://a.co/d/2uAGdkb)                                    |
 | Hose Line (1/4" ID x 3/8" OD / ~6mm ID x 10mm OD) | $19.99 USD | [Amazon Link](https://a.co/d/aiOlvxr) - 25' length                       |
 | Hose Clips 10mm                                   | $5.29 USD  | [Amazon Link](https://a.co/d/7FbnexI) - Pack of 100                      |
@@ -16,8 +16,8 @@
 | 90° USB-A to USB-C Adapter (Optional)             | $7.99 USD  | [Amazon Link](https://a.co/d/ihet7Jt)                                    |
 | Water Level Sensor (Planned Upgrade)              | TBD        | Awaiting parts to extend sensor length                                   |
 
-**Total Cost (Required Components):** ~$170.74 USD  
-**Total Cost (with Optional USB-A Adapter):** ~$178.73 USD
+**Total Cost (Required Components):** ~$173.74 USD  
+**Total Cost (with Optional USB-A Adapter):** ~$181.73 USD
 
 ## Planned Upgrades
 
