@@ -40,6 +40,9 @@ entities:
   - entity: sensor.apollo_pump_1_{DEVICE_SUFFIX}_status_operating_mode
     name: "📊 Operating Mode"
     icon: mdi:cog
+  - entity: sensor.apollo_pump_1_{DEVICE_SUFFIX}_status_pump_diagnostic
+    name: "🔍 Pump Status"
+    icon: mdi:information-outline
   - entity: sensor.apollo_pump_1_{DEVICE_SUFFIX}_pump_cycle_count
     name: "🔢 Pump Cycles"
     icon: mdi:counter
@@ -49,6 +52,16 @@ entities:
   - entity: sensor.apollo_pump_1_{DEVICE_SUFFIX}_status_next_auto_run
     name: "🕑 Next Auto Run"
     icon: mdi:clock-check-outline
+
+  # Trigger Mode Indicator - Only visible when trigger mode is active
+  - type: conditional
+    conditions:
+      - entity: binary_sensor.apollo_pump_1_{DEVICE_SUFFIX}_status_trigger_mode_active
+        state: "on"
+    row:
+      entity: binary_sensor.apollo_pump_1_{DEVICE_SUFFIX}_status_trigger_mode_active
+      name: "⚡ Trigger Mode Active"
+      icon: mdi:lightning-bolt
 
   # Run Until Full - Only visible when OUTPUT sensor is ON
   - type: conditional
@@ -238,12 +251,13 @@ entities:
           - entity: switch.apollo_pump_1_{DEVICE_SUFFIX}_safety_override
             name: "Safety Override"
             icon: mdi:shield-off
-          - entity: switch.apollo_pump_1_{DEVICE_SUFFIX}_sensor_enable_input
-            name: "Enable INPUT Sensor"
-            icon: mdi:radar
-          - entity: switch.apollo_pump_1_{DEVICE_SUFFIX}_sensor_enable_output
-            name: "Enable OUTPUT Sensor"
-            icon: mdi:water-alert
+          - type: divider
+          - entity: select.apollo_pump_1_{DEVICE_SUFFIX}_sensor_input_mode
+            name: "INPUT Sensor Mode"
+            icon: mdi:water-check
+          - entity: select.apollo_pump_1_{DEVICE_SUFFIX}_sensor_output_mode
+            name: "OUTPUT Sensor Mode"
+            icon: mdi:water-sync
 
       # Additional Controls
       - type: custom:fold-entity-row

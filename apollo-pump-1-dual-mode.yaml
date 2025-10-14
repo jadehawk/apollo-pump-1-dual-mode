@@ -27,7 +27,7 @@ substitutions:
   # =================================================================
   friendly_name: "Apollo Pump"
 
-  version: "jadehawk-2025.10.11.1"
+  version: "jadehawk-2025.10.13.1"
   device_description: Apollo Pump made by Apollo Automation - Custom FW version ${version}.
 
   # =================================================================
@@ -334,6 +334,23 @@ globals:
 
   # Boot test flag
   - id: boot_test_complete
+    type: bool
+    restore_value: no
+    initial_value: "false"
+
+  # Sensor trigger tracking (for trigger mode)
+  - id: input_trigger_detected
+    type: bool
+    restore_value: no
+    initial_value: "false"
+
+  - id: output_trigger_detected
+    type: bool
+    restore_value: no
+    initial_value: "false"
+
+  # Continuous mode pump running flag
+  - id: continuous_pump_running
     type: bool
     restore_value: no
     initial_value: "false"
@@ -656,6 +673,15 @@ binary_sensor:
       return id(alert_active);
     icon: mdi:alert
 
+  # Trigger mode active indicator
+  - platform: template
+    name: "Status: Trigger Mode Active"
+    id: trigger_mode_active
+    lambda: |-
+      return (id(input_sensor_mode).state == "Trigger" || 
+              id(output_sensor_mode).state == "Trigger");
+    icon: mdi:lightning-bolt
+
 # ============================================================================
 # Number Inputs (Configuration Parameters)
 # ============================================================================
@@ -882,6 +908,65 @@ text_sensor:
       return {id(timezone_input).state.c_str()};
     update_interval: 60s
 
+  # Pump diagnostic status
+  - platform: template
+    name: "Status: Pump Diagnostic"
+    id: pump_diagnostic_sensor
+    icon: mdi:information-outline
+    lambda: |-
+      // Check if pump & logic is disabled
+      if (!id(enable_pump_logic).state) {
+        return {"Pump & Logic Disabled"};
+      }
+
+      // Check if pump is currently running
+      if (id(pump_control).state) {
+        return {"Pump Running"};
+      }
+
+      // Check cycle mode conditions
+      if (id(enable_cycle_limiting).state) {
+        // Check if threshold reached
+        if (id(pump_cycle_count) >= (int)id(pump_cycle_threshold).state) {
+          if (id(enable_input_sensor).state && !id(fluid_input_sensor).state) {
+            return {"Blocked: Refill Needed & Input Dry"};
+          }
+          return {"Blocked: Refill Needed"};
+        }
+        
+        // Check input sensor in cycle mode
+        if (id(enable_input_sensor).state && !id(fluid_input_sensor).state) {
+          return {"Blocked: Input Sensor Dry"};
+        }
+      }
+
+      // Check continuous mode with sensors
+      if (!id(enable_cycle_limiting).state) {
+        // Check if any sensor mode is active
+        std::string input_mode = id(input_sensor_mode).state;
+        std::string output_mode = id(output_sensor_mode).state;
+        
+        // Safety mode checks
+        if (input_mode == "Safety" || output_mode == "Safety") {
+          if (input_mode == "Safety" && !id(fluid_input_sensor).state) {
+            return {"Waiting: Input Dry (Safety)"};
+          }
+          if (output_mode == "Safety" && id(fluid_output_sensor).state) {
+            return {"Waiting: Output Full (Safety)"};
+          }
+          return {"Auto-Run Disabled (Safety Mode)"};
+        }
+        
+        // Trigger mode checks
+        if (input_mode == "Trigger" || output_mode == "Trigger") {
+          return {"Waiting for Trigger Event"};
+        }
+      }
+
+      // All checks passed
+      return {"Normal"};
+    update_interval: 10s
+
 # ============================================================================
 # Text Inputs (User Configuration)
 # ============================================================================
@@ -902,6 +987,58 @@ text:
         - logger.log:
             format: "Timezone changed to: %s - Reboot required for changes to take effect"
             args: ["x.c_str()"]
+
+# ============================================================================
+# Select Inputs (Sensor Mode Configuration)
+# ============================================================================
+select:
+  # Input sensor mode selector
+  - platform: template
+    name: "Sensor: INPUT Mode"
+    id: input_sensor_mode
+    icon: mdi:water-check
+    optimistic: true
+    options:
+      - "Disabled"
+      - "Safety"
+      - "Trigger"
+    initial_option: "Disabled"
+    restore_value: true
+    entity_category: config
+    on_value:
+      then:
+        - lambda: |-
+            ESP_LOGI("sensor", "INPUT sensor mode changed to: %s", x.c_str());
+            // Update enable_input_sensor switch based on mode
+            if (x == "Disabled") {
+              id(enable_input_sensor).turn_off();
+            } else {
+              id(enable_input_sensor).turn_on();
+            }
+
+  # Output sensor mode selector
+  - platform: template
+    name: "Sensor: OUTPUT Mode"
+    id: output_sensor_mode
+    icon: mdi:water-sync
+    optimistic: true
+    options:
+      - "Disabled"
+      - "Safety"
+      - "Trigger"
+    initial_option: "Disabled"
+    restore_value: true
+    entity_category: config
+    on_value:
+      then:
+        - lambda: |-
+            ESP_LOGI("sensor", "OUTPUT sensor mode changed to: %s", x.c_str());
+            // Update enable_output_sensor switch based on mode
+            if (x == "Disabled") {
+              id(enable_output_sensor).turn_off();
+            } else {
+              id(enable_output_sensor).turn_on();
+            }
 
 # ============================================================================
 # RGB LED (Status Indicator)
@@ -1091,37 +1228,54 @@ script:
           condition:
             - switch.is_on: pump_control
           then:
-            # Check if output sensor detects full
-            - if:
-                condition:
-                  - and:
-                      - switch.is_on: enable_output_sensor
-                      - binary_sensor.is_on: fluid_output_sensor
-                then:
-                  - logger.log: "Pump stopping - output full"
-                  - switch.turn_off: pump_control
+            - lambda: |-
+                std::string input_mode = id(input_sensor_mode).state;
+                std::string output_mode = id(output_sensor_mode).state;
+                bool is_continuous = !id(enable_cycle_limiting).state;
 
-            # Check if input sensor detects empty
-            - if:
-                condition:
-                  - and:
-                      - switch.is_on: enable_input_sensor
-                      - lambda: "return !id(fluid_input_sensor).state;"
-                then:
-                  - logger.log: "Pump stopping - input empty"
-                  - switch.turn_off: pump_control
+                // ===== CONTINUOUS MODE SAFETY LOGIC =====
+                if (is_continuous) {
+                  // INPUT Safety Mode: Stop when DRY
+                  if (input_mode == "Safety" && !id(fluid_input_sensor).state) {
+                    ESP_LOGI("safety", "Continuous Safety: Input DRY - stopping pump");
+                    id(pump_control).turn_off();
+                    return;
+                  }
+                  
+                  // OUTPUT Safety Mode: Stop when WET (priority override)
+                  if (output_mode == "Safety" && id(fluid_output_sensor).state) {
+                    ESP_LOGI("safety", "Continuous Safety: Output FULL - stopping pump");
+                    id(pump_control).turn_off();
+                    return;
+                  }
+                }
+                // ===== CYCLE MODE LOGIC (Original Behavior) =====
+                else {
+                  // Check if output sensor detects full
+                  if (id(enable_output_sensor).state && id(fluid_output_sensor).state) {
+                    ESP_LOGI("safety", "Cycle mode: Output full - stopping pump");
+                    id(pump_control).turn_off();
+                    return;
+                  }
 
-            # Check safety timeout
-            - if:
-                condition:
-                  - lambda: |-
-                      if (id(pump_start_time) == 0) return false;
-                      uint32_t runtime = (millis() - id(pump_start_time)) / 1000;
-                      return runtime > id(max_safe_run_time).state && !id(pump_safety_override).state;
-                then:
-                  - logger.log: "Pump stopping - safety timeout"
-                  - switch.turn_off: pump_control
-                  - rtttl.play: "alarm:d=4,o=5,b=200:e,e,e"
+                  // Check if input sensor detects empty
+                  if (id(enable_input_sensor).state && !id(fluid_input_sensor).state) {
+                    ESP_LOGI("safety", "Cycle mode: Input empty - stopping pump");
+                    id(pump_control).turn_off();
+                    return;
+                  }
+                }
+
+                // ===== SAFETY TIMEOUT (All Modes) =====
+                if (id(pump_start_time) != 0 && !id(pump_safety_override).state) {
+                  uint32_t runtime = (millis() - id(pump_start_time)) / 1000;
+                  if (runtime > id(max_safe_run_time).state) {
+                    ESP_LOGW("safety", "Safety timeout reached - stopping pump");
+                    id(pump_control).turn_off();
+                    id(run_buzzer_alert).execute();
+                    return;
+                  }
+                }
 
             - delay: 1s
 
@@ -1332,4 +1486,81 @@ interval:
             call.set_rgb(0.0, 0.0, 1.0);  // Blue
             call.set_brightness(1.0);
             call.perform();
+          }
+
+  # Sensor trigger detection and continuous safety monitoring (runs every 2 seconds)
+  - interval: 2s
+    then:
+      - lambda: |-
+          // Skip if pump & logic disabled
+          if (!id(enable_pump_logic).state) {
+            return;
+          }
+
+          // Only run in continuous mode
+          if (id(enable_cycle_limiting).state) {
+            return;
+          }
+
+          std::string input_mode = id(input_sensor_mode).state;
+          std::string output_mode = id(output_sensor_mode).state;
+
+          // ===== TRIGGER MODE DETECTION =====
+          if (input_mode == "Trigger" || output_mode == "Trigger") {
+            // Check for trigger conditions
+            bool input_triggered = (input_mode == "Trigger" && id(fluid_input_sensor).state);
+            bool output_triggered = (output_mode == "Trigger" && id(fluid_output_sensor).state);
+
+            if (input_triggered || output_triggered) {
+              // Trigger detected - run pump for configured duration
+              if (!id(pump_control).state) {
+                if (input_triggered) {
+                  ESP_LOGI("trigger", "INPUT sensor triggered - starting pump");
+                }
+                if (output_triggered) {
+                  ESP_LOGI("trigger", "OUTPUT sensor triggered - starting pump");
+                }
+                
+                // Increment cycle counter for tracking
+                id(pump_cycle_count) += 1;
+                id(pump_cycle_sensor).publish_state(id(pump_cycle_count));
+                
+                // Update timestamp
+                if (id(sntp_time).now().timestamp > 0) {
+                  id(last_run_timestamp) = id(sntp_time).now().timestamp;
+                }
+                id(last_run_millis) = millis();
+                
+                // Start pump
+                id(pump_control).turn_on();
+                
+                // Schedule pump stop after run duration
+                // Note: pump_safety_check will handle this via timeout
+              }
+            }
+          }
+
+          // ===== CONTINUOUS SAFETY MODE MONITORING =====
+          if (input_mode == "Safety" || output_mode == "Safety") {
+            bool pump_running = id(pump_control).state;
+            
+            // INPUT Safety: Keep pump running while WET
+            if (input_mode == "Safety") {
+              if (id(fluid_input_sensor).state && !pump_running) {
+                // Input is WET and pump not running - start pump
+                ESP_LOGI("safety", "Continuous Safety: Input WET - starting pump");
+                id(pump_control).turn_on();
+              }
+              // If input goes DRY, pump_safety_check will stop it
+            }
+            
+            // OUTPUT Safety: Resume pump when DRY (after being stopped by full condition)
+            if (output_mode == "Safety") {
+              if (!id(fluid_output_sensor).state && !pump_running && input_mode == "Safety" && id(fluid_input_sensor).state) {
+                // Output is DRY, pump not running, and input is WET - resume pump
+                ESP_LOGI("safety", "Continuous Safety: Output DRY - resuming pump");
+                id(pump_control).turn_on();
+              }
+              // If output goes WET, pump_safety_check will stop it
+            }
           }

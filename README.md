@@ -5,7 +5,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-jadehawk--2025.10.11.1-blue)
+![Version](https://img.shields.io/badge/version-jadehawk--2025.10.13.1-blue)
 ![Hardware](https://img.shields.io/badge/hardware-ESP32--C6-green)
 ![Framework](https://img.shields.io/badge/framework-ESPHome-orange)
 ![License](https://img.shields.io/badge/license-MIT-lightgrey)
@@ -72,9 +72,38 @@
 
 ## 🚀 What's New
 
-### Version jadehawk-2025.10.11.1
+### Version jadehawk-2025.10.13.1 (Current)
 
 #### 🎉 Major Enhancements
+
+- **🎯 Three-Mode Sensor System**
+
+  - **Disabled Mode**: Sensor completely ignored
+  - **Safety Mode**: Continuous monitoring with automatic pump control
+    - INPUT Safety: Pump runs while WET, stops when DRY
+    - OUTPUT Safety: Pump stops when FULL, resumes when DRY (priority override)
+  - **Trigger Mode**: Event-driven operation
+    - Pump activates for configured duration when sensor detects WET
+    - Perfect for on-demand pumping scenarios
+
+- **📊 Enhanced Status Monitoring**
+
+  - **Diagnostic Status Sensor**: Real-time pump state reporting
+    - Shows current operating state
+    - Displays blocking conditions
+    - Mode-aware status messages
+  - **Trigger Mode Indicator**: Visual confirmation when trigger mode is active
+  - **Improved UI**: Clean sensor mode selectors in Home Assistant cards
+
+- **🛡️ Advanced Safety Logic**
+  - Mode-aware pump control for all scenarios
+  - Separate logic paths for Continuous vs Cycle modes
+  - 2-second monitoring interval for trigger detection
+  - Enhanced safety checks with priority override system
+
+### Version jadehawk-2025.10.11.1
+
+#### ✨ Key Features
 
 - **⏰ Bulletproof Time Synchronization**
 
@@ -821,7 +850,17 @@ Contributions are welcome! Here's how you can help:
 
 ## 📝 Version History
 
-### jadehawk-2025.10.11.1 (Current)
+### jadehawk-2025.10.13.1 (Current)
+
+- 🎯 Added three-mode sensor system (Disabled/Safety/Trigger)
+- 📊 Added diagnostic status sensor with real-time reporting
+- ⚡ Added trigger mode indicator
+- 🛡️ Implemented mode-aware safety logic
+- 🔄 Added 2-second monitoring interval for trigger detection
+- 🎨 Enhanced Home Assistant cards with sensor mode selectors
+- 🧹 Removed legacy sensor switches for cleaner UI
+
+### jadehawk-2025.10.11.1
 
 - ✨ Added intelligent time synchronization with fallback timer
 - ✨ Expanded NTP server list (6 servers: hostname + IP pairs)

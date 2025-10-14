@@ -57,6 +57,14 @@ filter:
       options:
         name: "📊 Operating Mode"
         icon: mdi:cog
+    - entity_id: "sensor.apollo_pump_1_*_status_pump_diagnostic"
+      options:
+        name: "🔍 Pump Status"
+        icon: mdi:information-outline
+    - entity_id: "binary_sensor.apollo_pump_1_*_status_trigger_mode_active"
+      options:
+        name: "⚡ Trigger Mode Active"
+        icon: mdi:lightning-bolt
     - entity_id: "sensor.apollo_pump_1_*_status_last_auto_run"
       options:
         name: "🕐 Last Auto Run"
@@ -97,6 +105,16 @@ filter:
       options:
         name: "🔄 Force Time Sync"
         icon: mdi:clock-check
+
+    # Sensor Mode Settings
+    - entity_id: "select.apollo_pump_1_*_sensor_input_mode"
+      options:
+        name: "🔧 INPUT Sensor Mode"
+        icon: mdi:water-check
+    - entity_id: "select.apollo_pump_1_*_sensor_output_mode"
+      options:
+        name: "🔧 OUTPUT Sensor Mode"
+        icon: mdi:water-sync
 
     # Status
     - entity_id: "binary_sensor.apollo_pump_1_*_status_ha_connected"
