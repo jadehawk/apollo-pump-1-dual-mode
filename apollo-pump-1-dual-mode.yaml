@@ -27,7 +27,7 @@ substitutions:
   # =================================================================
   friendly_name: "Apollo Pump"
 
-  version: "jadehawk-2025.10.13.1"
+  version: "jadehawk-2025.10.16.1"
   device_description: Apollo Pump made by Apollo Automation - Custom FW version ${version}.
 
   # =================================================================
@@ -80,8 +80,7 @@ esp32:
   flash_size: 8MB
   framework:
     type: esp-idf
-    version: 5.3.1
-    platform_version: 6.8.1
+    version: 5.4.2
 
 # ============================================================================
 # ESPHome Core Configuration
