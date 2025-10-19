@@ -27,7 +27,7 @@ substitutions:
   # =================================================================
   friendly_name: "Apollo Pump"
 
-  version: "jadehawk-2025.10.16.1"
+  version: "2025.10.16.1.JH"
   device_description: Apollo Pump made by Apollo Automation - Custom FW version ${version}.
 
   # =================================================================
@@ -884,6 +884,16 @@ text_sensor:
         return {"Time not synced"};
       }
     update_interval: 30s
+
+  # Custom firmware version display
+  - platform: template
+    name: "Status: FW Version"
+    id: custom_fw_version
+    icon: mdi:chip
+    lambda: |-
+      return {"${version}"};
+    update_interval: 60s
+    entity_category: diagnostic
 
   # SNTP sync status
   - platform: template
