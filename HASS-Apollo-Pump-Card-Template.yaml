@@ -77,21 +77,21 @@ entities:
       name: "⚡ Trigger Mode Active"
       icon: mdi:lightning-bolt
 
-  # Run Until Full - Only visible when OUTPUT sensor is ON
+  # Run Until Full - Only visible when OUTPUT sensor is in Safety mode
   - type: conditional
     conditions:
-      - entity: switch.apollo_pump_1_{DEVICE_SUFFIX}_sensor_enable_output
-        state: "on"
+      - entity: select.apollo_pump_1_{DEVICE_SUFFIX}_sensor_output_mode
+        state: "Safety"
     row:
       entity: button.apollo_pump_1_{DEVICE_SUFFIX}_manual_run_until_full
       name: "▶️ Run Until Full"
       icon: mdi:play-circle-outline
 
-  # Run Until Empty - Only visible when INPUT sensor is ON AND in Continuous Mode
+  # Run Until Empty - Only visible when INPUT sensor is in Safety mode AND in Continuous Mode
   - type: conditional
     conditions:
-      - entity: switch.apollo_pump_1_{DEVICE_SUFFIX}_sensor_enable_input
-        state: "on"
+      - entity: select.apollo_pump_1_{DEVICE_SUFFIX}_sensor_input_mode
+        state: "Safety"
       - entity: switch.apollo_pump_1_{DEVICE_SUFFIX}_cycle_enable_limiting
         state: "off"
     row:
