@@ -5,7 +5,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-jadehawk--2025.10.13.1-blue)
+![Version](https://img.shields.io/badge/version-jadehawk--2025.11.08.1-blue)
 ![Hardware](https://img.shields.io/badge/hardware-ESP32--C6-green)
 ![Framework](https://img.shields.io/badge/framework-ESPHome-orange)
 ![License](https://img.shields.io/badge/license-MIT-lightgrey)
@@ -72,7 +72,16 @@
 
 ## 🚀 What's New
 
-### Version jadehawk-2025.10.13.1 (Current)
+### Version jadehawk-2025.11.08.1 (Current)
+
+- 📊 **Enhanced "Next Auto Run" Status Display**
+  - Added mode-specific status messages for Trigger and Safety modes
+  - Shows `"Waiting for Sensor Trigger"` when in Trigger mode
+  - Shows `"Auto-run disabled (Safety mode)"` when in Safety mode
+  - Provides clearer feedback about pump operation state
+  - Eliminates generic "sensor mode" message for better user understanding
+
+### Version jadehawk-2025.10.13.1
 
 #### 🎉 Major Enhancements
 

@@ -27,7 +27,7 @@ substitutions:
   # =================================================================
   friendly_name: "Apollo Pump"
 
-  version: "2025.10.16.1.JH"
+  version: "2025.11.08.1.JH"
   device_description: Apollo Pump made by Apollo Automation - Custom FW version ${version}.
 
   # =================================================================
@@ -865,11 +865,23 @@ text_sensor:
         return {"Waiting for first run"};
       }
 
-      // Check for conditions that block auto-run
-      if (!id(enable_cycle_limiting).state && id(enable_input_sensor).state) {
-        return {"Auto-run disabled (sensor mode)"};
+      // Check for conditions that block auto-run in Continuous mode
+      if (!id(enable_cycle_limiting).state) {
+        std::string input_mode = id(input_sensor_mode).state;
+        std::string output_mode = id(output_sensor_mode).state;
+        
+        // Trigger Mode - waiting for sensor event
+        if (input_mode == "Trigger" || output_mode == "Trigger") {
+          return {"Waiting for Sensor Trigger"};
+        }
+        
+        // Safety Mode - auto-run disabled
+        if (input_mode == "Safety" || output_mode == "Safety") {
+          return {"Auto-run disabled (Safety mode)"};
+        }
       }
 
+      // Check for cycle mode threshold
       if (id(enable_cycle_limiting).state && id(pump_cycle_count) >= (int)id(pump_cycle_threshold).state) {
         return {"Blocked - refill needed"};
       }
