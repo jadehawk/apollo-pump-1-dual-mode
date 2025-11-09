@@ -25,7 +25,6 @@
 ## 📋 Table of Contents
 
 - [✨ Features](#-features)
-- [🚀 What's New](#-whats-new)
 - [🔌 Hardware Pinout](#-hardware-pinout)
 - [📦 Requirements](#-requirements)
 - [⚡ Quick Start](#-quick-start)
@@ -70,87 +69,7 @@
 
 ---
 
-## 🚀 What's New
-
-### Version jadehawk-2025.11.08.1 (Current)
-
-- 📊 **Enhanced "Next Auto Run" Status Display**
-
-  - Added mode-specific status messages for Trigger and Safety modes
-  - Shows `"Waiting for Sensor Trigger"` when in Trigger mode
-  - Shows `"Auto-run disabled (Safety mode)"` when in Safety mode
-  - Provides clearer feedback about pump operation state
-  - Eliminates generic "sensor mode" message for better user understanding
-
-- 🎨 **Fixed Home Assistant Card Button Visibility Logic**
-  - "Run Until Full" button now only appears when OUTPUT sensor is in Safety mode
-  - "Run Until Empty" button now only appears when INPUT sensor is in Safety mode
-  - Prevents confusing UX where buttons appeared in Trigger mode (where they don't make sense)
-  - Updated all card files: Template, Cleaning Pump, and Purge Pump cards
-  - Buttons now correctly match sensor behavior expectations
-
-### Version jadehawk-2025.10.13.1
-
-#### 🎉 Major Enhancements
-
-- **🎯 Three-Mode Sensor System**
-
-  - **Disabled Mode**: Sensor completely ignored
-  - **Safety Mode**: Continuous monitoring with automatic pump control
-    - INPUT Safety: Pump runs while WET, stops when DRY
-    - OUTPUT Safety: Pump stops when FULL, resumes when DRY (priority override)
-  - **Trigger Mode**: Event-driven operation
-    - Pump activates for configured duration when sensor detects WET
-    - Perfect for on-demand pumping scenarios
-
-- **📊 Enhanced Status Monitoring**
-
-  - **Diagnostic Status Sensor**: Real-time pump state reporting
-    - Shows current operating state
-    - Displays blocking conditions
-    - Mode-aware status messages
-  - **Trigger Mode Indicator**: Visual confirmation when trigger mode is active
-  - **Improved UI**: Clean sensor mode selectors in Home Assistant cards
-
-- **🛡️ Advanced Safety Logic**
-  - Mode-aware pump control for all scenarios
-  - Separate logic paths for Continuous vs Cycle modes
-  - 2-second monitoring interval for trigger detection
-  - Enhanced safety checks with priority override system
-
-### Version jadehawk-2025.10.11.1
-
-#### ✨ Key Features
-
-- **⏰ Bulletproof Time Synchronization**
-
-  - 3 NTP servers (1 hostname + 2 IP) for maximum redundancy
-  - Explicit DNS configuration (dns1, dns2)
-  - **Fallback timer system** using device uptime when SNTP unavailable
-  - Automatic rollover handling (49.7-day uptime support)
-  - **Pumps never miss scheduled intervals** regardless of network issues
-
-- **🏷️ Dynamic Device Naming**
-
-  - Automatic MAC suffix appending
-  - User-customizable friendly names
-  - Unique identification for multiple pumps
-
-- **🔐 Flexible Security**
-
-  - Optional auto-generated credentials (Except for API Encryption Key)
-  - Manual credential support for existing devices
-  - Simplified multi-pump deployment
-
-- **📚 Comprehensive Documentation**
-  - Detailed sensor use cases
-  - Step-by-step configuration guides
-  - Troubleshooting section
-  - Template-based dashboard cards
-
----
-
-## 🔌 Hardware Pinout
+## Hardware Pinout
 
 ### ESP32-C6 Pin Assignments
 
@@ -867,7 +786,24 @@ Contributions are welcome! Here's how you can help:
 
 ## 📝 Version History
 
-### jadehawk-2025.10.13.1 (Current)
+### jadehawk-2025.11.08.1 (Current)
+
+- 📊 **Enhanced "Next Auto Run" Status Display**
+
+  - Added mode-specific status messages for Trigger and Safety modes
+  - Shows `"Waiting for Sensor Trigger"` when in Trigger mode
+  - Shows `"Auto-run disabled (Safety mode)"` when in Safety mode
+  - Provides clearer feedback about pump operation state
+  - Eliminates generic "sensor mode" message for better user understanding
+
+- 🎨 **Fixed Home Assistant Card Button Visibility Logic**
+  - "Run Until Full" button now only appears when OUTPUT sensor is in Safety mode
+  - "Run Until Empty" button now only appears when INPUT sensor is in Safety mode
+  - Prevents confusing UX where buttons appeared in Trigger mode (where they don't make sense)
+  - Updated all card files: Template, Cleaning Pump, and Purge Pump cards
+  - Buttons now correctly match sensor behavior expectations
+
+### jadehawk-2025.10.13.1
 
 - 🎯 Added three-mode sensor system (Disabled/Safety/Trigger)
 - 📊 Added diagnostic status sensor with real-time reporting
