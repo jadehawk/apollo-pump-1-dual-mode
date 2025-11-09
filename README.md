@@ -75,11 +75,19 @@
 ### Version jadehawk-2025.11.08.1 (Current)
 
 - 📊 **Enhanced "Next Auto Run" Status Display**
+
   - Added mode-specific status messages for Trigger and Safety modes
   - Shows `"Waiting for Sensor Trigger"` when in Trigger mode
   - Shows `"Auto-run disabled (Safety mode)"` when in Safety mode
   - Provides clearer feedback about pump operation state
   - Eliminates generic "sensor mode" message for better user understanding
+
+- 🎨 **Fixed Home Assistant Card Button Visibility Logic**
+  - "Run Until Full" button now only appears when OUTPUT sensor is in Safety mode
+  - "Run Until Empty" button now only appears when INPUT sensor is in Safety mode
+  - Prevents confusing UX where buttons appeared in Trigger mode (where they don't make sense)
+  - Updated all card files: Template, Cleaning Pump, and Purge Pump cards
+  - Buttons now correctly match sensor behavior expectations
 
 ### Version jadehawk-2025.10.13.1
 
