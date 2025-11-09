@@ -73,10 +73,6 @@ filter:
       options:
         name: "🕑 Next Auto Run"
         icon: mdi:clock-check-outline
-    - entity_id: "sensor.apollo_pump_1_*_status_fw_version"
-      options:
-        name: "📟 FW Version"
-        icon: mdi:chip
 
     # Cycle Management
     - entity_id: "sensor.apollo_pump_1_*_pump_cycle_count"
@@ -136,8 +132,13 @@ filter:
         name: "🔄 Reboot"
         icon: mdi:restart-alert
 
+    # Firmware Version - Always displayed last
+    - entity_id: "sensor.apollo_pump_1_*_status_fw_version"
+      options:
+        name: "📟 FW Version"
+        icon: mdi:chip
+
   exclude: []
 
-sort:
-  method: friendly_name
-  reverse: false
+  # Sorting removed to maintain entity order as listed above
+  # This ensures FW Version always appears last

@@ -63,9 +63,6 @@ entities:
   - entity: sensor.apollo_pump_1_{DEVICE_SUFFIX}_status_next_auto_run
     name: "🕑 Next Auto Run"
     icon: mdi:clock-check-outline
-  - entity: sensor.apollo_pump_1_{DEVICE_SUFFIX}_status_fw_version
-    name: "📟 FW Version"
-    icon: mdi:chip
 
   # Trigger Mode Indicator - Only visible when trigger mode is active
   - type: conditional
@@ -98,6 +95,10 @@ entities:
       entity: button.apollo_pump_1_{DEVICE_SUFFIX}_manual_run_until_empty
       name: "▶️ Run Until Empty"
       icon: mdi:play-circle-outline
+
+  - entity: sensor.apollo_pump_1_{DEVICE_SUFFIX}_status_fw_version
+    name: "📟 FW Version"
+    icon: mdi:chip
 
   - type: divider
 
